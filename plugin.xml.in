@@ -1,0 +1,22 @@
+<pluginMetaData path="certgen">
+    <name>Certificate Generator</name>
+    <author>Matthew Ratcliffe</author>
+    <pluginVersion>@PLUGIN_VERSION@</pluginVersion>
+    <!--
+      Exact string match against the server version, split on commas. An
+      extension declaring anything else is refused outright by ExtensionLoader
+      and silently not loaded, so build.sh stamps this from MIRTH_VERSION.
+    -->
+    <mirthVersion>@MIRTH_VERSION@</mirthVersion>
+    <url>https://openintegrationengine.org</url>
+    <description>Generates key pairs with certificates for mutual TLS, signed by a CA key pair held in TLS Manager: a subject you give, client and server authentication, valid 25 years or until the CA expires, whichever is sooner. Each one is saved as a TLS Manager key pair and downloadable as PKCS#12 and PEM. Needs the TLS Manager extension.</description>
+
+    <serverClasses>
+        <string>org.openintegrationengine.plugins.certgen.CertGenServicePlugin</string>
+    </serverClasses>
+
+    <library type="SERVER" path="libs/certgen-server.jar" />
+
+    <apiProvider type="SERVLET_INTERFACE" name="org.openintegrationengine.plugins.certgen.CertGenServletInterface" />
+    <apiProvider type="SERVER_CLASS" name="org.openintegrationengine.plugins.certgen.CertGenServlet" />
+</pluginMetaData>

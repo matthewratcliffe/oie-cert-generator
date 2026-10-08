@@ -1,0 +1,10 @@
+{
+    "id": "certgen",
+    "name": "Certificate Generator",
+    "version": "0.1.0",
+    "author": "Matthew Ratcliffe",
+    "description": "Generates key pairs with certificates for mutual TLS, signed by a CA key pair held in TLS Manager: a subject you give, client and server authentication, valid 25 years or until the CA expires. Each is saved in TLS Manager and downloadable as PKCS#12 and PEM.",
+    "enabled": true,
+    "oie": { "apiMin": "4.6" },
+    "client": { "entry": "web/plugin.js" }
+}
