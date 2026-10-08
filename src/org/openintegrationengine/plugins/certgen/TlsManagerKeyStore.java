@@ -12,6 +12,7 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -235,6 +236,56 @@ final class TlsManagerKeyStore {
             if (!liveKeyStore(service).containsAlias(alias)) {
                 throw new IllegalStateException("TLS Manager did not keep \"" + alias + "\".");
             }
+        }
+    }
+
+    /** What {@link #put} did. */
+    enum Put { ADDED, UPDATED, UNCHANGED }
+
+    /**
+     * Adds a key pair, or replaces the one under {@code alias} -- the renewal case, a
+     * new certificate for a key pair connectors already present by that name. An
+     * identical key pair is left alone, so TLS Manager's store is not rewritten on
+     * every deploy. Without {@code replace} an alias already in use is refused.
+     */
+    static Put put(String alias, PrivateKey key, X509Certificate[] chain, boolean replace) throws Exception {
+        Object service = certificateService();
+        char[] pw = password(service);
+        synchronized (LOCK) {
+            KeyStore live = liveKeyStore(service);
+            boolean exists = live.containsAlias(alias);
+            if (exists) {
+                if (!replace) {
+                    throw new IllegalArgumentException("TLS Manager already has \"" + alias
+                        + "\"; choose another name, or replace it.");
+                }
+                if (!live.isKeyEntry(alias)) {
+                    throw new IllegalArgumentException("\"" + alias + "\" in TLS Manager is not a "
+                        + "key pair; choose another name.");
+                }
+                Entry current = read(live, alias, pw);
+                if (current != null && Arrays.equals(current.key.getEncoded(), key.getEncoded())
+                        && Arrays.equals(current.chain, chain)) {
+                    return Put.UNCHANGED;
+                }
+            }
+            ByteArrayOutputStream current = new ByteArrayOutputStream();
+            live.store(current, pw);
+            KeyStore copy = KeyStore.getInstance(live.getType());
+            copy.load(new ByteArrayInputStream(current.toByteArray()), pw);
+            if (exists) {
+                copy.deleteEntry(alias);
+            }
+            copy.setKeyEntry(alias, key, pw, chain);
+            ByteArrayOutputStream updated = new ByteArrayOutputStream();
+            copy.store(updated, pw);
+            service.getClass().getMethod("storeExtraKeyStore", byte[].class, char[].class)
+                .invoke(service, updated.toByteArray(), pw);
+            Entry stored = read(liveKeyStore(service), alias, pw);
+            if (stored == null || stored.chain.length != chain.length) {
+                throw new IllegalStateException("TLS Manager did not keep \"" + alias + "\" as given.");
+            }
+            return exists ? Put.UPDATED : Put.ADDED;
         }
     }
 

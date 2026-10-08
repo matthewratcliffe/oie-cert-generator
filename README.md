@@ -66,10 +66,35 @@ Under `/api/certgen`, XStream maps in and out like the engine's own API:
 | --- | --- |
 | `GET /authorities` | TLS Manager's key pairs (alias, subject, expiry, whether each is a usable CA) and the default |
 | `POST /issue` | `caAlias`, `subject`, `alias`, `subjectAltNames`, `keyType`, `validityDays`, `pkcs12Password`, `save`, `trust` -- returns the certificate details, PEM and base64 PKCS#12 |
+| `POST /import` | `alias`, `certificatePem`, `privateKeyPem`, `replace` -- saves a key pair issued elsewhere; returns `result` (`added`, `updated` or `unchanged`), the subject, expiry and chain |
 
-Both sit behind the **Generate certificates** permission. Grant it as narrowly as
-the permission to manage TLS Manager: it hands out keys the engine's partners
-will trust.
+All three sit behind the **Generate certificates** permission. Grant it as
+narrowly as the permission to manage TLS Manager: it hands out keys the engine's
+partners will trust.
+
+### Importing a key pair
+
+`/import` is for a certificate from somewhere else -- a public CA's, typically --
+that a TLS listener should present. TLS Manager's own key pair API keeps only
+the first certificate of the PEM it is given, so the intermediates are lost and
+a client holding only the public root cannot verify the listener. Worse, that API
+rewrites every key pair on each write, so it strips the chain from all the
+others as well. This endpoint stores the whole chain through TLS Manager's
+certificate service:
+
+- `certificatePem` is the certificate and its chain in **any order**, repeats
+  allowed. The leaf is the certificate the key belongs to; each next link is the
+  given certificate that signed the last, up to a root or the end of what was
+  given. Certificates from another chain are left out and counted in `ignored`.
+- `privateKeyPem` is unencrypted PKCS#8, or traditional `RSA PRIVATE KEY` /
+  `EC PRIVATE KEY`. It may instead be inside `certificatePem`.
+- `replace=true` replaces a key pair already under `alias` -- the renewal case.
+  An identical key pair is left as it is, so calling this on every deploy costs
+  nothing. Without it, a name in use is refused.
+
+It refuses an expired certificate, an encrypted key, and a key that matches none
+of the certificates. A deployed channel keeps presenting the key pair it was
+deployed with: redeploy the channels that use it after replacing one.
 
 ## Build
 

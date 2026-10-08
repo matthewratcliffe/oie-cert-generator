@@ -207,6 +207,56 @@ final class CertGenService {
         return out;
     }
 
+    /**
+     * Imports a key pair from PEM -- a certificate issued elsewhere, a public CA's say --
+     * so TLS connectors can present it by alias.
+     *
+     * <p>Fields: alias (required), certificatePem (the certificate and its chain, in
+     * any order; may hold the key too), privateKeyPem (unencrypted; optional when it
+     * is in certificatePem), replace (replace a key pair already under alias;
+     * default false). The chain is stored leaf first with its intermediates, which
+     * TLS Manager's own key pair API drops.
+     */
+    Map<String, Object> importKeyPair(Map<String, String> in, String user) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        try {
+            String alias = text(in, "alias");
+            if (alias.isEmpty()) {
+                throw new IllegalArgumentException("Give the alias to save the key pair under.");
+            }
+            KeyPairImport.Parsed parsed = KeyPairImport.parse(text(in, "certificatePem"),
+                text(in, "privateKeyPem"), Instant.now());
+            boolean replace = "true".equalsIgnoreCase(text(in, "replace"));
+            TlsManagerKeyStore.Put result = TlsManagerKeyStore.put(alias, parsed.key, parsed.chain, replace);
+
+            X509Certificate leaf = parsed.chain[0];
+            List<String> chain = new ArrayList<>();
+            for (X509Certificate c : parsed.chain) {
+                chain.add(c.getSubjectX500Principal().getName());
+            }
+            out.put("ok", Boolean.TRUE);
+            out.put("alias", alias);
+            out.put("result", result.name().toLowerCase(Locale.ROOT));
+            out.put("subject", leaf.getSubjectX500Principal().getName());
+            out.put("issuer", leaf.getIssuerX500Principal().getName());
+            out.put("notAfter", leaf.getNotAfter().toInstant().toString());
+            out.put("chainLength", parsed.chain.length);
+            out.put("chain", String.join("\n", chain));
+            out.put("ignored", parsed.unused.size());
+            out.put("duplicates", parsed.duplicates);
+            LOG.info("certificate generator: {} imported key pair \"{}\" ({}): {}, chain of {}, valid to {}{}",
+                user == null ? "someone" : user, alias, out.get("result"), out.get("subject"),
+                parsed.chain.length, out.get("notAfter"),
+                parsed.unused.isEmpty() ? "" : "; " + parsed.unused.size()
+                    + " certificate(s) not in its chain left out");
+        } catch (Exception e) {
+            out.clear();
+            out.put("ok", Boolean.FALSE);
+            out.put("error", message(e));
+        }
+        return out;
+    }
+
     static byte[] pkcs12(String alias, CertificateIssuer.Issued issued, char[] password) throws Exception {
         KeyStore p12 = KeyStore.getInstance("PKCS12");
         p12.load(null, null);

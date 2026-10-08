@@ -128,8 +128,9 @@ selftest() {
         rm -rf build/test-classes
         mkdir -p build/test-classes
         javac -Xlint:all -Xlint:-options -Werror -source 17 -target 17 \
-            -cp "$CP" -d build/test-classes test/IssuerSelfTest.java
+            -cp "$CP" -d build/test-classes test/IssuerSelfTest.java test/ImportSelfTest.java
         java -cp "build/test-classes:$CP" org.openintegrationengine.plugins.certgen.IssuerSelfTest
+        java -cp "build/test-classes:$CP" org.openintegrationengine.plugins.certgen.ImportSelfTest
     '
 }
 

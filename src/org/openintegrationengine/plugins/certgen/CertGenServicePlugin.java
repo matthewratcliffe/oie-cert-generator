@@ -43,9 +43,10 @@ public class CertGenServicePlugin implements ServicePlugin {
         return new ExtensionPermission[] {
             new ExtensionPermission(PLUGIN_POINT_NAME, "Generate certificates",
                 "Allows issuing certificates signed by TLS Manager's CA key pairs, which "
-                + "hands out keys the engine's partners will trust, so grant it as narrowly "
-                + "as the permission to manage TLS Manager.",
-                new String[] {"certGenAuthorities", "certGenIssue"},
+                + "hands out keys the engine's partners will trust, and importing key pairs "
+                + "into TLS Manager, so grant it as narrowly as the permission to manage TLS "
+                + "Manager.",
+                new String[] {"certGenAuthorities", "certGenIssue", "certGenImport"},
                 new String[0]),
         };
     }

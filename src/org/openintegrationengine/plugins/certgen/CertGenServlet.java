@@ -30,4 +30,10 @@ public class CertGenServlet extends MirthServlet implements CertGenServletInterf
         String user = context == null ? null : "user " + context.getUserId();
         return SERVICE.issue(request, user);
     }
+
+    @Override
+    public Map<String, Object> importKeyPair(Map<String, String> request) {
+        String user = context == null ? null : "user " + context.getUserId();
+        return SERVICE.importKeyPair(request, user);
+    }
 }

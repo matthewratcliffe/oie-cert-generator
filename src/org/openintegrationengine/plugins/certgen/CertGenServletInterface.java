@@ -49,4 +49,18 @@ public interface CertGenServletInterface extends BaseServletInterface {
         @io.swagger.v3.oas.annotations.Parameter(description = "caAlias, subject, alias, "
             + "subjectAltNames, keyType, validityDays, pkcs12Password, save.")
         Map<String, String> request) throws ClientException;
+
+    @POST
+    @Path("/import")
+    @io.swagger.v3.oas.annotations.Operation(summary =
+        "Save a key pair given as PEM in TLS Manager, with its whole certificate chain, "
+        + "so TLS connectors can present it.")
+    @MirthOperation(name = "certGenImport", display = "Import a key pair",
+        type = Operation.ExecuteType.SYNC)
+    Map<String, Object> importKeyPair(
+        // The body carries the private key.
+        @Param(value = "request", excludeFromAudit = true)
+        @io.swagger.v3.oas.annotations.Parameter(description = "alias, certificatePem, "
+            + "privateKeyPem, replace.")
+        Map<String, String> request) throws ClientException;
 }
