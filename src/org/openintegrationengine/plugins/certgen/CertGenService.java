@@ -106,7 +106,8 @@ final class CertGenService {
      * alias (the name it is saved under; default from the CN), subjectAltNames
      * (comma- or newline-separated), keyType (default RSA_2048), validityDays (default
      * {@value CertificateIssuer#DEFAULT_YEARS} years), pkcs12Password (default: a
-     * generated one, returned), save (default true).
+     * generated one, returned), save (default true), trust (add the certificate
+     * to TLS Manager's trusted certificates; default true).
      */
     Map<String, Object> issue(Map<String, String> in, String user) {
         Map<String, Object> out = new LinkedHashMap<>();
@@ -138,6 +139,9 @@ final class CertGenService {
                 }
             }
             boolean save = !"false".equalsIgnoreCase(text(in, "save"));
+            // Trusted too, by default: a TLS listener checks a client's certificate against
+            // TLS Manager's trusted certificates, so this is what lets a channel accept it.
+            boolean trust = !"false".equalsIgnoreCase(text(in, "trust"));
 
             // Checked before issuing, so a taken name costs nothing.
             String alias = text(in, "alias");
@@ -148,6 +152,10 @@ final class CertGenService {
             if (save && TlsManagerKeyStore.contains(alias)) {
                 throw new IllegalArgumentException("TLS Manager already has \"" + alias
                     + "\"; give this certificate another name.");
+            }
+            if (trust && TlsManagerKeyStore.trustedContains(alias)) {
+                throw new IllegalArgumentException("TLS Manager already trusts a certificate named \""
+                    + alias + "\"; give this certificate another name.");
             }
 
             CertificateIssuer.Issued issued = CertificateIssuer.issue(ca.key, ca.chain, subject,
@@ -163,11 +171,15 @@ final class CertGenService {
             if (save) {
                 TlsManagerKeyStore.add(alias, issued.privateKey, issued.chain);
             }
+            if (trust) {
+                TlsManagerKeyStore.addTrusted(alias, issued.certificate);
+            }
 
             X509Certificate cert = issued.certificate;
             out.put("ok", Boolean.TRUE);
             out.put("alias", alias);
             out.put("saved", save);
+            out.put("trusted", trust);
             out.put("subject", cert.getSubjectX500Principal().getName());
             out.put("issuer", cert.getIssuerX500Principal().getName());
             out.put("caAlias", caAlias);
@@ -182,10 +194,11 @@ final class CertGenService {
             out.put("pkcs12", Base64.getEncoder().encodeToString(p12));
             out.put("pkcs12Password", password);
             out.put("pkcs12PasswordGenerated", generated);
-            LOG.info("certificate generator: {} issued {} (serial {}) signed by {}, valid to {}{}{}",
+            LOG.info("certificate generator: {} issued {} (serial {}) signed by {}, valid to {}{}{}{}",
                 user == null ? "someone" : user, out.get("subject"), out.get("serial"), caAlias,
                 out.get("notAfter"), issued.cappedToCa ? " (cut to the CA's expiry)" : "",
-                save ? ", saved as TLS Manager key pair \"" + alias + "\"" : "");
+                save ? ", saved as TLS Manager key pair \"" + alias + "\"" : "",
+                trust ? " and trusted" : "");
         } catch (Exception e) {
             out.clear();
             out.put("ok", Boolean.FALSE);

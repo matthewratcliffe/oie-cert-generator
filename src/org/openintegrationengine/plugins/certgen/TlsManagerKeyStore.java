@@ -88,8 +88,20 @@ final class TlsManagerKeyStore {
         return ks;
     }
 
+    private static KeyStore liveTrustStore(Object service) throws Exception {
+        KeyStore ks = (KeyStore) service.getClass().getMethod("getExternalTrustStore").invoke(service);
+        if (ks == null) {
+            throw new IllegalStateException("TLS Manager has no trusted certificate store.");
+        }
+        return ks;
+    }
+
     private static char[] password(Object service) throws Exception {
-        Field field = service.getClass().getDeclaredField("extraKeyStoreBackend");
+        return password(service, "extraKeyStoreBackend");
+    }
+
+    private static char[] password(Object service, String backendField) throws Exception {
+        Field field = service.getClass().getDeclaredField(backendField);
         field.setAccessible(true);
         Object backend = field.get(service);
         if (backend == null) {
@@ -156,6 +168,42 @@ final class TlsManagerKeyStore {
         Object service = certificateService();
         synchronized (LOCK) {
             return liveKeyStore(service).containsAlias(alias);
+        }
+    }
+
+    static boolean trustedContains(String alias) throws Exception {
+        Object service = certificateService();
+        synchronized (LOCK) {
+            return liveTrustStore(service).containsAlias(alias);
+        }
+    }
+
+    /**
+     * Adds a certificate to TLS Manager's trusted certificates -- what a TLS listener
+     * checks a client's certificate against -- and saves that store through TLS
+     * Manager. Refuses an alias already in use there.
+     */
+    static void addTrusted(String alias, X509Certificate cert) throws Exception {
+        Object service = certificateService();
+        char[] pw = password(service, "extraTrustStoreBackend");
+        synchronized (LOCK) {
+            KeyStore live = liveTrustStore(service);
+            if (live.containsAlias(alias)) {
+                throw new IllegalArgumentException("TLS Manager already trusts a certificate named \""
+                    + alias + "\"; choose another name.");
+            }
+            ByteArrayOutputStream current = new ByteArrayOutputStream();
+            live.store(current, pw);
+            KeyStore copy = KeyStore.getInstance(live.getType());
+            copy.load(new ByteArrayInputStream(current.toByteArray()), pw);
+            copy.setCertificateEntry(alias, cert);
+            ByteArrayOutputStream updated = new ByteArrayOutputStream();
+            copy.store(updated, pw);
+            service.getClass().getMethod("storeExtraTrustStore", byte[].class, char[].class)
+                .invoke(service, updated.toByteArray(), pw);
+            if (!liveTrustStore(service).containsAlias(alias)) {
+                throw new IllegalStateException("TLS Manager did not keep trusted \"" + alias + "\".");
+            }
         }
     }
 

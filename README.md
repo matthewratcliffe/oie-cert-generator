@@ -31,14 +31,18 @@ generates a new key pair and a certificate for it signed by the CA:
   empty, a CN that is a host name goes in as a DNS name, which TLS servers need.
 
 The new key pair is **saved in TLS Manager** under the name you give (default:
-the CN), so TLS connectors can present it, and offered for **download** as
+the CN), so TLS connectors can present it, and its certificate is **added to
+TLS Manager's trusted certificates** under the same name, so a channel's TLS
+listener accepts it as a client certificate (untick *Add to trusted
+certificates*, or send `trust=false`, to skip that). It is also offered for
+**download** as
 PKCS#12 (password-protected; one is generated if you leave it empty) and as PEM
 certificate, chain and private key. The private key is on the page only until
 you leave it; afterwards it is in TLS Manager.
 
 It refuses a signer that is not a CA (no basicConstraints CA:true, or a keyUsage
 without keyCertSign), an expired CA, a malformed subject, and a name TLS Manager
-already has.
+already has in either store -- checked before anything is issued.
 
 ## How it works
 
@@ -61,7 +65,7 @@ Under `/api/certgen`, XStream maps in and out like the engine's own API:
 | | |
 | --- | --- |
 | `GET /authorities` | TLS Manager's key pairs (alias, subject, expiry, whether each is a usable CA) and the default |
-| `POST /issue` | `caAlias`, `subject`, `alias`, `subjectAltNames`, `keyType`, `validityDays`, `pkcs12Password`, `save` -- returns the certificate details, PEM and base64 PKCS#12 |
+| `POST /issue` | `caAlias`, `subject`, `alias`, `subjectAltNames`, `keyType`, `validityDays`, `pkcs12Password`, `save`, `trust` -- returns the certificate details, PEM and base64 PKCS#12 |
 
 Both sit behind the **Generate certificates** permission. Grant it as narrowly as
 the permission to manage TLS Manager: it hands out keys the engine's partners

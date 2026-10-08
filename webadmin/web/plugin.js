@@ -276,6 +276,7 @@ export function register(platform) {
         const [keyType, setKeyType] = React.useState('RSA_2048');
         const [years, setYears] = React.useState(String(DEFAULT_YEARS));
         const [password, setPassword] = React.useState('');
+        const [trust, setTrust] = React.useState(true);
         const [busy, setBusy] = React.useState(false);
         const [error, setError] = React.useState(null);
         const [result, setResult] = React.useState(null);
@@ -320,6 +321,7 @@ export function register(platform) {
                     subjectAltNames: sans,
                     keyType,
                     pkcs12Password: password || undefined,
+                    trust: trust ? 'true' : 'false',
                 };
                 // The server's default is 25 calendar years; send days only when changed.
                 if (yearsNum !== DEFAULT_YEARS) {
@@ -398,6 +400,12 @@ export function register(platform) {
                     placeholder: 'leave empty to generate one',
                     onChange: e => setPassword(e.target.value),
                 }), 'Protects the .p12 download only.', { key: 'pw' }),
+                Field('Trust', h('label', {
+                    style: { display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'normal' },
+                }, [
+                    h('input', { key: 'c', type: 'checkbox', checked: trust, onChange: e => setTrust(e.target.checked) }),
+                    h('span', { key: 't' }, 'Add to TLS Manager's trusted certificates'),
+                ]), 'So a channel's TLS listener accepts it as a client certificate.', { span: true, key: 'trust' }),
             ]),
             error ? Banner('error', error, 'err') : null,
             h('div', { key: 'actions', style: { marginTop: '9px' } }, [
@@ -412,7 +420,9 @@ export function register(platform) {
             const base = fileBase(result.alias);
             resultPanel = Panel('Generated: ' + result.alias, [
                 result.saved
-                    ? Banner('ok', `Saved in TLS Manager as "${result.alias}". The private key is on `
+                    ? Banner('ok', `Saved in TLS Manager as "${result.alias}"`
+                        + (result.trusted ? ' and added to its trusted certificates' : '')
+                        + '. The private key is on '
                         + 'this page only until you leave it: download what you need now.', 'saved')
                     : Banner('warn', 'Not saved in TLS Manager. The private key is on this page '
                         + 'only until you leave it: download it now.', 'notsaved'),
