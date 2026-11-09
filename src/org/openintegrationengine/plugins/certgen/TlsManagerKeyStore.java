@@ -265,7 +265,7 @@ final class TlsManagerKeyStore {
                 }
                 Entry current = read(live, alias, pw);
                 if (current != null && Arrays.equals(current.key.getEncoded(), key.getEncoded())
-                        && Arrays.equals(current.chain, chain)) {
+                        && startsWith(current.chain, chain)) {
                     return Put.UNCHANGED;
                 }
             }
@@ -282,11 +282,34 @@ final class TlsManagerKeyStore {
             service.getClass().getMethod("storeExtraKeyStore", byte[].class, char[].class)
                 .invoke(service, updated.toByteArray(), pw);
             Entry stored = read(liveKeyStore(service), alias, pw);
-            if (stored == null || stored.chain.length != chain.length) {
-                throw new IllegalStateException("TLS Manager did not keep \"" + alias + "\" as given.");
+            if (stored == null) {
+                throw new IllegalStateException("TLS Manager did not keep \"" + alias
+                    + "\": its private key or chain could not be read back.");
+            }
+            // PKCS#12 does not store a chain as such: on load Java rebuilds it by issuer
+            // from every certificate in the file, so it may continue past what was given
+            // (a root another key pair carries). That is fine; losing or changing any
+            // certificate that was given is not.
+            if (!startsWith(stored.chain, chain)) {
+                throw new IllegalStateException("TLS Manager did not keep \"" + alias
+                    + "\" as given: stored a chain of " + stored.chain.length
+                    + ", gave " + chain.length + ".");
             }
             return exists ? Put.UPDATED : Put.ADDED;
         }
+    }
+
+    /** True when {@code have} begins with every certificate of {@code want}, in order. */
+    private static boolean startsWith(X509Certificate[] have, X509Certificate[] want) {
+        if (have.length < want.length) {
+            return false;
+        }
+        for (int i = 0; i < want.length; i++) {
+            if (!have[i].equals(want[i])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Entry read(KeyStore ks, String alias, char[] pw) {
